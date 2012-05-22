@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load url from future %}
+
+{% block content %}
+<h1>Possible People Searches</h1>
+
+{% for serialization in serialization_list %}
+	<form class="group" method="POST" action="{% url 'people-results' %}">
+		{%csrf_token%}
+		<div style="display:none">
+			<input type="hidden" name="name" value="{{serialization.name}}" />
+		</div>
+		<h2>{{serialization.name}}</h2>
+		Functions:
+		<ul>
+			{% for fname, arguments in serialization.function_stack %}
+				<li>Function <strong>{{fname}}</strong>:</li>
+				<ul>
+					{% for argument in arguments %}
+						<li>
+							{{argument}} :
+							<input type="text" name="{{argument}}" />
+						</li>
+					{% empty %}
+						<i>No arguments (other than qs)</i>
+					{% endfor %}
+				</ul>
+			{% empty %}
+				<i>No functions in this stack.</i>
+			{% endfor %}
+		</ul>
+		
+		<div class="buttons">
+			<input type="submit" value="Submit through POST">
+		</div>
+	</form>
+{% empty %}
+	<i>No searches registered</i>
+{% endfor %}
+
+{% endblock %}

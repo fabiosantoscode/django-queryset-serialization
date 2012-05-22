@@ -2,6 +2,7 @@ from itertools import izip, count
 from functools import update_wrapper, partial
 import json
 import warnings
+from functools import update_wrapper
 import inspect
 
 
@@ -11,10 +12,8 @@ class DjangoQuerysetSerializationException(Exception):
 dqse = DjangoQuerysetSerializationException
 
 
-
 class SerializationNotRegistered(dqse):
     pass
-
 
 
 class BadSerializationFormat(dqse):
@@ -32,8 +31,12 @@ class Serialization(object):
         
         def step(self, queryset):
             return self._function.__call__(queryset, **self._arguments)
+        
+        def __repr__(self):
+            return "<SerializationStep: Function %d: %s(**%s)>" % (
+                self._index, self._fname, self._arguments)
     
-    def __init__(self, name, queryset):
+    def __init__(self, name, queryset=None):
         self.name=name
         self._steps=[]
         self._queryset = queryset
@@ -45,36 +48,62 @@ class Serialization(object):
     def get_queryset(self, queryset=None):
         queryset = queryset if queryset is not None else self._queryset
         for step in self._steps:
+            # refactor into a map/reduce?
             queryset = step.step(queryset)
         return queryset
+
+
+
+dqs_methods = [] #shortcuts to the class methods
+def shortcut_decorator(f):
+    '''
+    add f to a list of django-queryset-serialization shortcut methods,
+    which won't need to be called upon the DjangoQuerysetSerialization
+    instance.
+    '''
     
-    def _f(self, fname, *args, **kwargs):
-        qs = self.get_queryset()
-        f = getattr(qs,fname)
-        f(qs,*args,**kwargs)
+    global dqs_methods
+    def wrapper(*args, **kwargs):
+        #dqs is the queen instance of DjangoQuerysetSerialization
+        return f(dqs, *args, **kwargs)
     
-for fname in ('get','filter','all','exclude','order_by'):
-    setattr(Serialization,fname,partial(Serialization._f,fname=fname))
+    dqs_methods.append(update_wrapper(wrapper, f))
+    
+    return f #so this is a decorator and really isn't a decorator.
+
 
 
 class DjangoQuerysetSerialization(dict):
     '''
+    Subclass of dict
+    
+    
+    Internal description:
+    Contains tuples of (base queryset, function stack), known as
+    "serializations". Function stacks are tuples of (function
+    __name__, function, index). These functions are then called by
+    django-queryset-serialization one by one to create the output
+    querysets.
+    
+    The keys of this dictionary are the names of those serializations.
     
     '''
     
-    def _get_function_stack(self, name):
+    @shortcut_decorator
+    def get_function_stack(self, name):
         try:
             return self[name][1]
         except KeyError:
             raise SerializationNotRegistered
     
-    def _get_queryset(self, name):
+    @shortcut_decorator
+    def get_queryset(self, name):
         try:
             return self[name][0]
         except KeyError:
             raise SerializationNotRegistered
     
-    
+    @shortcut_decorator
     def register(self, queryset, stackname, *functions):
         function_stack = []
         for function, index in izip(functions, count()):
@@ -82,9 +111,10 @@ class DjangoQuerysetSerialization(dict):
         
         self[stackname] = queryset, function_stack
     
+    @shortcut_decorator
     def from_dict(self, d):
-        function_stack = self._get_function_stack(d['name'])
-        queryset = self._get_queryset(d['name'])
+        function_stack = self.get_function_stack(d['name'])
+        queryset = self.get_queryset(d['name'])
         argument_stack = d['stack']
         
         serialization = Serialization(d['name'], queryset)
@@ -108,121 +138,116 @@ class DjangoQuerysetSerialization(dict):
         
         return serialization
     
+    @shortcut_decorator
     def from_json(self, j):
         return self.from_dict(json.loads(j))
     
+    @shortcut_decorator
     def from_url(self, url):
+        '''
+        Unserialize a queryset from an URL. Magic is still done inside
+        from_dict.
+        Takes an URL and returns the queryset.
+        
+        Format of the url:
+        
+        /serializationname/-function1/arg1-val1/arg2-val2/-pag/page-10
+        
+        first slash is optional
+        '''
         warnings.warn('TODO: URL DECODE')
         
         url = url.lstrip('/')
+        
         components = iter(url.split('/'))
         
-        try:
-            name = components.next()
-        except StopIteration:
+        name = components.next()
+        
+        def function_iterator(comps):
+            this_function = ''
+            arguments = {}
+            for current_component in comps:
+                
+                if not this_function: #first iteration
+                    '''First iteration here means it's  the second
+                    component in the url (first component was the
+                    name), so make sure it is a name. Function names
+                    start with '-' '''
+                    if not current_component.startswith('-'):
+                        raise BadSerializationFormat(url)
+                
+                if current_component.startswith('-'): #func
+                    yield this_function, arguments
+                    arguments = {}
+                    this_function = current_component.lstrip('-')
+                elif '-' in current_component:
+                    split = current_component.split('-')
+                    'splits into ["fname","arg"]'
+                    'might split into more, because of dashes in the argument string.'
+                    arguments[split[0]] = '-'.join(split[1:])
+                else:
+                    raise BadSerializationFormat(
+                        '%s (%s)' % (current_component, url))
+            
+            # last function. We don't know it changed because we
+            # never saw another function name
+            yield this_function, arguments
+        
+        if name in self:
+            return self.from_dict({
+                'name': name,
+                'stack': [{
+                    'name':name,
+                    'args':args
+                } for name, args in function_iterator(components)]
+            })
+        else:
+            raise SerializationNotRegistered(name)
+
+    @shortcut_decorator
+    def from_request_data(self, request_data, name='', prefix=''):
+        '''
+        Unserializes from request data (request.GET, request.POST or
+        request.REQUEST)
+        
+        Params:
+        "name" and "prefix" are actually for overriding "name" and
+        "prefix" in the request data. "prefix" is optional either way,
+        and "name" must be present either in the request data or as
+        an argument to this method.
+        '''
+        
+        name = name or request_data.get('name','')
+        if not name:
             raise BadSerializationFormat
         
-        function_stack = self._get_function_stack(name)
-        queryset = self._get_queryset(name)
+        prefix = prefix or request_data.get('prefix','')
         
-        def get_functions():
-            for fname, func, index in function_stack:
-                argspec = inspect.getargspec(func)[0]
-                return fname, argspec, len(argspec)
+        function_stack = self.get_function_stack(name)
+        queryset = self.get_queryset(name)
         
+        serialization = Serialization(name, queryset)
         
-        result_stack = [] # going to be a list of dicts
+        for fname, func, index in function_stack:
+            argument_prefix = ('%s_' % prefix) if prefix else ''
+            arguments = {}
+            for argname in inspect.getargspec(func)[0]:
+                if argument_prefix + argname in request_data:
+                    arguments[argname] = request_data[argname]
+            serialization.add_step(fname, func, **arguments)
         
-        last_fname = ''
-        last_urlcomponent = ''
-        for function_name,arguments,argument_count in get_functions():
-            fname = components.pop()
-            if function_name == fname:
-                function_call_details = {'name':fname, 'args':{}}
-                for argname in arguments:
-                    '''at this point, we have key/value pairs
-                    expressed in the URL. Odd-indexed values
-                    are keys, even-indexed values are the
-                    values. We have to extract an argument, then a 
-                    value, then iterate again.'''
-                    try:
-                        if argname == components_next():
-                            function_call_details['args'][argname
-                                ] = components.next()
-                        else:
-                            raise BadSerializationFormat
-                    except StopIteration:
-                        raise BadSerializationFormat
-                result_stack += [function_call_details]
-            else:
-                raise BadSerializationFormat
-            
-        d = {
-            'name' : name,
-            'stack' : result_stack
-        }
-        return self.from_dict(d)
-
-dqs = DjangoQuerysetSerialization()
-
-if __name__ == '__main__':
-    l = []
-    qs = object()
-    
-    def clearfunction(qs):
-        print 'asd1'
-        global l
-        l.append(qs)
-    
-    def functionsomewhere(qs,penis, another):
-        print 'asd'
-        global l
-        l+=[penis,another]
-        
-    def otherfunction(qs):
-        global l
-        print 'asdadsas'
-        l+=['otherfunctioncalled']
-    
-    def finalfunction(qs, page):
-        global l
-        print 'finalfunction'
-        l+=[int(page)]
-    
-    #register the functions into the DQS stack. Called in order.
-    dqs.register(qs,'some_serialization_i_registered', clearfunction, functionsomewhere, otherfunction, finalfunction)
-    
-    assert len(dqs) == 1
-    
-    #add a dqs dict structure. could come from json.
-    d = json.dumps({
-        'name':'some_serialization_i_registered',
-        'stack':[
-            {
-                'name':'functionsomewhere',
-                'args':{
-                    'penis':'iamargument',
-                    'another':'asdgu'
-                }
-            }
-        ]
-    })
-    
-    url = 'some_serialization_i_registered/functionsomewhere/penis/iamargument/another/asdgu/finalfunction/page/10'
-    
-    #serialization = dqs.from_json(d)
-    #serialization = dqs.from_dict(d)
-    serialization = dqs.from_url(url)
-    
-    serialization.get_queryset()
-    
-    assert 'some_serialization_i_registered' in dqs
-    assert 'iamargument' in l
-    assert 'asdgu' in l
-    assert 'otherfunctioncalled' in l
-    assert qs in l
-    assert 10 in l
-    
-    assert len(dqs)==1
+        return serialization
 
 
+
+try:
+    this_module
+except NameError:
+    dqs = DjangoQuerysetSerialization()
+    
+    'Add every method in the list'
+    import dqs as this_module
+    for method in dqs_methods:
+        setattr(this_module, method.__name__, method)
+    
+    setattr(this_module, 'this_module', 'Was already imported')

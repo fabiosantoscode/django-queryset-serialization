@@ -1,5 +1,14 @@
 # Django settings for testproject project.
 
+import sys, os
+
+
+def absolute(path='.'):
+    return os.path.abspath(os.path.join(os.path.abspath(
+        os.path.dirname(__file__)), path))
+
+sys.path.append(absolute('..'))
+
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
 
@@ -106,6 +115,7 @@ TEMPLATE_DIRS = (
     # Put strings here, like "/home/html/django_templates" or "C:/www/django/templates".
     # Always use forward slashes, even on Windows.
     # Don't forget to use absolute paths, not relative paths.
+    absolute('templates')
 )
 
 INSTALLED_APPS = (
@@ -116,9 +126,11 @@ INSTALLED_APPS = (
     'django.contrib.messages',
     'django.contrib.staticfiles',
     # Uncomment the next line to enable the admin:
-    # 'django.contrib.admin',
+    'django.contrib.admin',
     # Uncomment the next line to enable admin documentation:
     # 'django.contrib.admindocs',
+    
+    'people',
 )
 
 # A sample logging configuration. The only tangible logging

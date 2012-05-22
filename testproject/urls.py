@@ -15,5 +15,9 @@ urlpatterns = patterns('',
     # Uncomment the next line to enable the admin:
     url(r'^admin/', include(admin.site.urls)),
     
-    url(r'^people/search', 'people.views.search'),
+    url(r'^$', 'people.views.index'),
+    url(r'^people/$', 'people.views.index', name="people-index"),
+    url(r'^people/results/(?P<url>.+?)', 'people.views.results', name="people-results"),
+    url(r'^people/results/', 'people.views.results', name="people-results"),
+    
 )
