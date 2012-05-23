@@ -157,53 +157,40 @@ class DjangoQuerysetSerialization(dict):
         '''
         warnings.warn('TODO: URL DECODE')
         
-        url = url.lstrip('/')
+        ret = {}
         
-        components = iter(url.split('/'))
+        url = url.lstrip('/').rstrip('/')
         
-        name = components.next()
+        components = url.split('/')
         
-        def function_iterator(comps):
-            this_function = ''
-            arguments = {}
-            for current_component in comps:
-                
-                if not this_function: #first iteration
-                    '''First iteration here means it's  the second
-                    component in the url (first component was the
-                    name), so make sure it is a name. Function names
-                    start with '-' '''
-                    if not current_component.startswith('-'):
-                        raise BadSerializationFormat(url)
-                
-                if current_component.startswith('-'): #func
-                    yield this_function, arguments
-                    arguments = {}
-                    this_function = current_component.lstrip('-')
-                elif '-' in current_component:
-                    split = current_component.split('-')
-                    'splits into ["fname","arg"]'
-                    'might split into more, because of dashes in the argument string.'
-                    arguments[split[0]] = '-'.join(split[1:])
-                else:
-                    raise BadSerializationFormat(
-                        '%s (%s)' % (current_component, url))
-            
-            # last function. We don't know it changed because we
-            # never saw another function name
-            yield this_function, arguments
+        ret['name'] = components[0]
         
-        if name in self:
-            return self.from_dict({
-                'name': name,
-                'stack': [{
-                    'name':name,
-                    'args':args
-                } for name, args in function_iterator(components)]
-            })
-        else:
-            raise SerializationNotRegistered(name)
-
+        components = components[1:]
+        
+        def process_component(component):
+            if component.startswith('-'):
+                return 'function', component.lstrip('-')
+            elif '-' in component:
+                s = component.split('-')
+                return 'argument', { s[0]: '-'.join(s[1:]) }
+            else:
+                raise BadSerializationFormat('expected "-function" or'\
+                    ' "argname-argument", got %s' % component)
+        
+        ret['stack'] = []
+        
+        for url_component in components:
+            component_type, result = process_component(url_component)
+            if component_type == 'function':
+                ret['stack'].append({
+                    'name': result,
+                    'args': {}
+                })
+            if component_type == 'argument':
+                ret['stack'][-1]['args'].update(result)
+        
+        return self.from_dict(ret)
+    
     @shortcut_decorator
     def from_request_data(self, request_data, name='', prefix=''):
         '''
