@@ -94,7 +94,7 @@ class DjangoQuerysetSerialization(dict):
             raise SerializationNotRegistered
     
     @shortcut_decorator
-    def get_queryset(self, name):
+    def get_base_queryset(self, name):
         try:
             return self[name][0]
         except KeyError:
@@ -111,7 +111,7 @@ class DjangoQuerysetSerialization(dict):
     @shortcut_decorator
     def from_dict(self, d):
         function_stack = self.get_function_stack(d['name'])
-        queryset = self.get_queryset(d['name'])
+        queryset = self.get_base_queryset(d['name'])
         argument_stack = d['stack']
         
         serialization = Serialization(d['name'], queryset)
@@ -208,7 +208,7 @@ class DjangoQuerysetSerialization(dict):
         prefix = prefix or request_data.get('prefix','')
         
         function_stack = self.get_function_stack(name)
-        queryset = self.get_queryset(name)
+        queryset = self.get_base_queryset(name)
         
         serialization = Serialization(name, queryset)
         
