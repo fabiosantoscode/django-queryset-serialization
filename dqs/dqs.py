@@ -20,33 +20,29 @@ class BadSerializationFormat(DjangoQuerysetSerializationException):
 
 class Serialization(object):
     class SerializationStep(object):
-        def __init__(self, fname, function, index, **arguments):    
-            self._index = index
-            self._fname = fname
+        def __init__(self, function, **arguments):
             self._function = function
             self._arguments = arguments
         
         def apply_to(self, queryset):
             return self._function.__call__(queryset, **self._arguments)
-        
-        def __repr__(self):
-            return "<SerializationStep: Function %d: %s(**%s)>" % (
-                self._index, self._fname, self._arguments)
     
     def __init__(self, name, queryset=None):
         self.name=name
         self._steps=[]
         self._queryset = queryset
     
-    def add_step(self, fname, function, **arguments):
+    def add_step(self, function, **arguments):
         self._steps.append(Serialization.SerializationStep(
-                fname, function, len(self._steps), **arguments))
+            function, **arguments))
+    
+    def set_base_queryset(self, queryset):
+        self._queryset = queryset
     
     def get_queryset(self, queryset=None):
-        queryset = queryset if queryset is not None else self._queryset
         for step in self._steps:
             # Apply all serialization functions to the queryset
-            queryset = step.apply_to(queryset)
+            queryset = step.apply_to(self._queryset)
         return queryset
 
 
@@ -58,10 +54,9 @@ class DjangoQuerysetSerialization(dict):
     
     Internal description:
     Contains tuples of (base queryset, function stack), known as
-    "serializations". Function stacks are tuples of (function
-    __name__, function, index). These functions are then called by
-    django-queryset-serialization one by one to create the output
-    querysets.
+    "serializations". Function stacks are lists of callables.
+    These functions are called by SerializationStep instances
+    one by one to create the output querysets.
     
     The keys of this dictionary are the names of those serializations.
     
@@ -81,8 +76,8 @@ class DjangoQuerysetSerialization(dict):
     
     def register(self, queryset, stackname, *functions):
         function_stack = []
-        for function, index in izip(functions, count()):
-            function_stack.append((function.__name__, function, index))
+        for function in functions:
+            function_stack.append(function)
         
         self[stackname] = queryset, function_stack
     
@@ -95,20 +90,20 @@ class DjangoQuerysetSerialization(dict):
         
         iter_argstack = iter(argument_stack)
         last_arg = None
-        for fname, func, index in function_stack:
+        for func in function_stack:
             call_args = {}
             try:
                 if not last_arg:
                     last_arg = iter_argstack.next()
                 
-                if last_arg['name'] == fname:
+                if last_arg['name'] == func.__name__:
                     call_args = last_arg.get('args',{})
                     last_arg = None
                 else:
                     "last_arg remains the same for the next iteration"
             except StopIteration:
                 pass
-            serialization.add_step(fname, func, **call_args)
+            serialization.add_step(func, **call_args)
         
         return serialization
     
@@ -131,7 +126,7 @@ class DjangoQuerysetSerialization(dict):
         
         ret = {}
         
-        url = url.lstrip('/').rstrip('/')
+        url = url.strip('/')
         
         components = url.split('/')
         
@@ -186,13 +181,14 @@ class DjangoQuerysetSerialization(dict):
         
         serialization = Serialization(name, queryset)
         
-        for fname, func, index in function_stack:
+        for func in function_stack:
+            fname = func.__name__
             argument_prefix = ('%s_' % prefix) if prefix else ''
             arguments = {}
             for argname in inspect.getargspec(func)[0]:
                 if argument_prefix + argname in request_data:
                     arguments[argname] = request_data[argname]
-            serialization.add_step(fname, func, **arguments)
+            serialization.add_step(func, **arguments)
         
         return serialization
 
