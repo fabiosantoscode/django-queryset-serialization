@@ -9,14 +9,11 @@ import inspect
 
 class DjangoQuerysetSerializationException(Exception):
     pass
-dqse = DjangoQuerysetSerializationException
 
-
-class SerializationNotRegistered(dqse):
+class SerializationNotRegistered(DjangoQuerysetSerializationException):
     pass
 
-
-class BadSerializationFormat(dqse):
+class BadSerializationFormat(DjangoQuerysetSerializationException):
     pass
 
 
