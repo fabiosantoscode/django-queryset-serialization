@@ -51,25 +51,6 @@ class Serialization(object):
 
 
 
-dqs_methods = [] #shortcuts to the class methods
-def shortcut_decorator(f):
-    '''
-    add f to a list of django-queryset-serialization shortcut methods,
-    which won't need to be called upon the DjangoQuerysetSerialization
-    instance.
-    '''
-    
-    global dqs_methods
-    def wrapper(*args, **kwargs):
-        #dqs is the queen instance of DjangoQuerysetSerialization
-        return f(dqs, *args, **kwargs)
-    
-    dqs_methods.append(update_wrapper(wrapper, f))
-    
-    return f #so this is a decorator and really isn't a decorator.
-
-
-
 class DjangoQuerysetSerialization(dict):
     '''
     Subclass of dict
@@ -86,21 +67,18 @@ class DjangoQuerysetSerialization(dict):
     
     '''
     
-    @shortcut_decorator
     def get_function_stack(self, name):
         try:
             return self[name][1]
         except KeyError:
             raise SerializationNotRegistered
     
-    @shortcut_decorator
     def get_base_queryset(self, name):
         try:
             return self[name][0]
         except KeyError:
             raise SerializationNotRegistered
     
-    @shortcut_decorator
     def register(self, queryset, stackname, *functions):
         function_stack = []
         for function, index in izip(functions, count()):
@@ -108,7 +86,6 @@ class DjangoQuerysetSerialization(dict):
         
         self[stackname] = queryset, function_stack
     
-    @shortcut_decorator
     def from_dict(self, d):
         function_stack = self.get_function_stack(d['name'])
         queryset = self.get_base_queryset(d['name'])
@@ -135,11 +112,9 @@ class DjangoQuerysetSerialization(dict):
         
         return serialization
     
-    @shortcut_decorator
     def from_json(self, j):
         return self.from_dict(json.loads(j))
     
-    @shortcut_decorator
     def from_url(self, url):
         '''
         Unserialize a queryset from an URL. Magic is still done inside
@@ -188,7 +163,6 @@ class DjangoQuerysetSerialization(dict):
         
         return self.from_dict(ret)
     
-    @shortcut_decorator
     def from_request_data(self, request_data, name='', prefix=''):
         '''
         Unserializes from request data (request.GET, request.POST or
@@ -223,15 +197,30 @@ class DjangoQuerysetSerialization(dict):
         return serialization
 
 
+dqs = DjangoQuerysetSerialization()
 
-try:
-    this_module
-except NameError:
-    dqs = DjangoQuerysetSerialization()
+def from_request_data(request_data, name='', prefix=''):
+    global dqs
+    return dqs.from_request_data(request_data, name, prefix)
+
+def from_url(url):
+    global dqs
+    return dqs.from_url(url)
+
+def from_dict(d):
+    global dqs
+    return dqs.from_dict(d)
     
-    'Add every method in the list'
-    import dqs as this_module
-    for method in dqs_methods:
-        setattr(this_module, method.__name__, method)
-    
-    setattr(this_module, 'this_module', 'Was already imported')
+def from_json(d):
+    global dqs
+    return dqs.from_json(d)
+
+def get_base_queryset(name):
+    global dqs
+    return dqs.get_base_queryset(name)
+
+def register(base_queryset, name, *functions):
+    global dqs
+    return dqs.register(base_queryset, name, *functions)
+
+
