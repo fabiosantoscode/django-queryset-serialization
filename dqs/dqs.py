@@ -26,7 +26,7 @@ class Serialization(object):
             self._function = function
             self._arguments = arguments
         
-        def step(self, queryset):
+        def apply_to(self, queryset):
             return self._function.__call__(queryset, **self._arguments)
         
         def __repr__(self):
@@ -45,8 +45,8 @@ class Serialization(object):
     def get_queryset(self, queryset=None):
         queryset = queryset if queryset is not None else self._queryset
         for step in self._steps:
-            # refactor into a map/reduce?
-            queryset = step.step(queryset)
+            # Apply all serialization functions to the queryset
+            queryset = step.apply_to(queryset)
         return queryset
 
 
