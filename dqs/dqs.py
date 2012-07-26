@@ -1,4 +1,4 @@
-from itertools import izip, count
+from itertools import chain
 from functools import update_wrapper, partial
 import json
 import warnings
@@ -40,7 +40,6 @@ class DjangoQuerysetSerialization(dict):
     '''
     Subclass of dict
     
-    
     Internal description:
     Contains tuples of (base queryset, function stack), known as
     "serializations". Function stacks are lists of callables.
@@ -58,11 +57,11 @@ class DjangoQuerysetSerialization(dict):
         return self[name][0]
     
     def register(self, queryset, stackname, *functions):
-        function_stack = []
-        for function in functions:
-            function_stack.append(function)
-        
-        self[stackname] = queryset, function_stack
+        self[stackname] = queryset, list(functions)
+    
+    def register_chainable(self, queryset, stackname):
+        self[stackname] = queryset, []
+        return ChainableSerializer(stackname)
     
     def from_dict(self, d):
         function_stack = self.get_function_stack(d['name'])
@@ -178,6 +177,198 @@ class DjangoQuerysetSerialization(dict):
 
 dqs = DjangoQuerysetSerialization()
 
+class ChainableSerializer(object):
+    global dqs
+    dqs_instance = dqs
+    
+    '''
+    A new way to serialize a queryset. You can just create it, and
+    use it like you would use a real queryset, except you can save
+    them for later execution.
+    
+    $parameters, or __keyword_arguments may be specified.
+    
+    Example:
+    
+    some_queryset = SomeModel.objects.all()
+    qs = SerializedQueryset(some_queryset)
+    
+    qs = qs.exclude(banned=True)
+    qs = qs.filter(something__iexact='$parameter1')
+    
+    qs.get_queryset({'$parameter1':'something'})
+    
+    NOTE:
+     - If you are going to serialize to JSON, any arguments passed to
+     the queryset methods must be serializable through JSON.
+     - Every parameter must be a string.
+    
+    '''
+    
+    def __init__(self, queryset_name):
+        self._variables = []
+        self._stack = []
+        assert queryset_name in dqs
+        self._queryset = queryset_name
+    
+    @classmethod
+    def from_dict(cls, d):
+        instance = cls.__init__(d['queryset'])
+        
+        instance._stack = d.get('stack', [])
+        instance._variables = d.get('variables', [])
+        
+        return instance
+    
+    def to_dict(self):
+        return {
+            "variables":self._variables,
+            "stack":self._stack,
+            "queryset":self._queryset
+        }
+    
+    @classmethod
+    def from_json(self, data):
+        return self.from_dict(json.reads(data))
+    
+    def to_json(self):
+        return json.dumps(self.to_dict())
+    
+    def get_queryset(self, parameters, override_dqs=None):
+        '''
+        Get a queryset by executing the operations to the base
+        queryset registered in the DjangoQuerysetSerialization
+        instance.
+        
+        Parameters (__customizable_kwarg='$param1','$other-param')
+        are looked up internally and replaced with the actual values
+        passed in through the argument `parameters`.
+        
+        '''
+        
+        dqs = self.dqs_instance or override_dqs
+        
+        queryset = dqs.get_base_queryset(self._queryset).all()
+        
+        for operation in self._stack:
+            args_raw, kwargs_raw = operation['args'], operation['kwargs']
+            
+            args, kwargs = [], {}
+            for argument in args_raw:
+                if argument in self._variables:
+                    argument = parameters[argument]
+                args.append(argument)
+            
+            for keyword, value in kwargs_raw.items():
+                if keyword in self._variables:
+                    keyword = parameters[keyword]
+                if value in self._variables:
+                    value = parameters[value]
+                kwargs[keyword] = value
+            
+            method = getattr(queryset, operation['name'])
+            queryset = method(*args, **kwargs)
+        return queryset
+    
+    def _register(self, fname, *args, **kwargs):
+        '''
+        add a configurable queryset function call. Takes the queryset
+        method name (ie: 'filter', 'all', 'exclude'...), and
+        positional and keyword arguments for the call. Parameters
+        will be replaced by any given input parameters when
+        unserializing.
+        
+        '''
+        
+        args = list(args)
+        
+        def add_variable(var):
+            if var in self._variables:
+                raise ValueError('%s was already used!' % var)
+            self._variables.append(var)
+        
+        for i, arg in enumerate(args):
+            if arg.startswith('$$'): #escaping
+                args[i] = arg[1:]
+            elif arg.startswith('$'):
+                add_variable(arg)
+        
+        for key, arg in kwargs.items():
+            if arg.startswith('$$'):
+                kwargs[key] = arg[1:]
+            elif arg.startswith('$'):
+                add_variable(arg)
+            
+            if key.startswith('____'):
+                kwargs[key[2:]] = arg
+                del kwargs[key]
+            elif key.startswith('__'):
+                add_variable(key)
+        
+        self._stack.append({
+            'name':fname,
+            'args':tuple(args),
+            'kwargs':kwargs
+        })
+        
+        return self #chain me!
+    
+    def filter(self, **kwargs):
+        return self._register('filter', **kwargs)
+    
+    def exclude(self, **kwargs):
+        return self._register('exclude', **kwargs)
+    
+    def annotate(self, *args, **kwargs):
+        return self._register('annotate', *args, **kwargs)
+    
+    def order_by(self, *args):
+        return self._register('order_by', *args)
+    
+    def reverse(self):
+        return self._register('reverse')
+    
+    def distinct(self, *args):
+        return self._register('distinct', *args)
+    
+    def values(self, *args):
+        return self._register('values', *args)
+    
+    def values_list(self, *args):
+        return self._register('values_list', *args)
+    
+    def dates(self, *args, **kwargs):
+        return self._register('dates', *args, **kwargs)
+    
+    def none(self, *args, **kwargs):
+        return self._register('none', *args, **kwargs)
+    
+    def all(self):
+        return self._register('all')
+    
+    def select_related(self):
+        return self._register('select_related')
+    
+    def prefetch_related(self, *args):
+        return self._register('prefetch_related', *args)
+    
+    def extra(self, *args, **kwargs):
+        return self._register('extra', *args, **kwargs)
+    
+    def defer(self, *args):
+        return self._register('defer', *args)
+    
+    def only(self, *args, **kwargs):
+        return self._register('only', *args, **kwargs)
+    
+    def using(self, alias):
+        return self._register('using', alias)
+    
+    def select_for_update(self, nowait):
+        return self._register('select_for_update', nowait)
+
+
+
 def from_request_data(request_data, name='', prefix=''):
     global dqs
     return dqs.from_request_data(request_data, name, prefix)
@@ -201,5 +392,9 @@ def get_base_queryset(name):
 def register(base_queryset, name, *functions):
     global dqs
     return dqs.register(base_queryset, name, *functions)
+
+def register_chainable(base_queryset, name):
+    global dqs
+    return dqs.register_chainable(base_queryset, name)
 
 
