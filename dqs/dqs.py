@@ -7,17 +7,6 @@ import inspect
 
 
 
-class DjangoQuerysetSerializationException(Exception):
-    pass
-
-class SerializationNotRegistered(DjangoQuerysetSerializationException):
-    pass
-
-class BadSerializationFormat(DjangoQuerysetSerializationException):
-    pass
-
-
-
 class Serialization(object):
     class SerializationStep(object):
         def __init__(self, function, **arguments):
@@ -63,16 +52,10 @@ class DjangoQuerysetSerialization(dict):
     '''
     
     def get_function_stack(self, name):
-        try:
-            return self[name][1]
-        except KeyError:
-            raise SerializationNotRegistered
+        return self[name][1]
     
     def get_base_queryset(self, name):
-        try:
-            return self[name][0]
-        except KeyError:
-            raise SerializationNotRegistered
+        return self[name][0]
     
     def register(self, queryset, stackname, *functions):
         function_stack = []
@@ -141,7 +124,7 @@ class DjangoQuerysetSerialization(dict):
                 s = component.split('-')
                 return 'argument', { s[0]: '-'.join(s[1:]) }
             else:
-                raise BadSerializationFormat('expected "-function" or'\
+                raise ValueError('expected "-function" or'\
                     ' "argname-argument", got %s' % component)
         
         ret['stack'] = []
@@ -172,7 +155,7 @@ class DjangoQuerysetSerialization(dict):
         
         name = name or request_data.get('name','')
         if not name:
-            raise BadSerializationFormat
+            raise ValueError
         
         prefix = prefix or request_data.get('prefix','')
         
