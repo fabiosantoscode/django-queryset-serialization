@@ -95,10 +95,14 @@ class ChainableSerializer(object):
      - Every parameter must be a string.
     
     '''
+    __slots__ = ['_placeholders','_stack']
     
-    def __init__(self):
-        self._placeholders = []
-        self._stack = []
+    def __init__(self, placeholders=[], stack=[]):
+        self._placeholders = placeholders
+        self._stack = stack
+    
+    def _copy(self):
+        return self.__class__(self._placeholders, self._stack)
     
     def get_queryset(self, base_queryset, parameters):
         'Called by Serialization.get_queryset()'
@@ -173,7 +177,7 @@ class ChainableSerializer(object):
             'kwargs':kwargs
         })
         
-        return self #chain me!
+        return self._copy() #chain me!
     
     def filter(self, **kwargs):
         return self._register('filter', **kwargs)

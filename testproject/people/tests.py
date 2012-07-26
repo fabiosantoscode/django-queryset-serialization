@@ -38,5 +38,7 @@ class BasicTests(TestCase):
         #TODO Add serialization capabilities to the serializers
     
     def test_serializers_are_immutable(self):
-        #TODO
-        pass
+        serializer = self.dqs.make_serializer()
+        
+        self.assertTrue(serializer is not serializer.all())
+    
