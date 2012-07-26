@@ -20,30 +20,4 @@ class Person(models.Model):
         return '%s (...)' % name[:lim] if len(name) > lim else name
 admin.site.register(Person)
 
-'''
-Searches
-
-'''
-
-def exclude_john(qs):
-    return qs.exclude(name__istartswith='john')
-
-def exclude_nancy(qs):
-    return qs.exclude(name__istartswith='nancy')
-
-def find_by_name_start(qs, name_start):
-    return qs.filter(name__istartswith=name_start)
-
-def females_only(qs):
-    return qs.exclude(gender=GENDER_VALUES['male'])
-
-base_qs = Person.objects.all()
-males = Person.objects.filter(gender=GENDER_VALUES['male'])
-
-dqs.register(base_qs, 'namestart', find_by_name_start)
-dqs.register(males, 'male_namestart', find_by_name_start)
-dqs.register(base_qs, 'female_namestart', find_by_name_start, females_only)
-dqs.register(base_qs, 'no-common-names', exclude_john, exclude_nancy)
-
-dqs.register(base_qs, 'everyone')
 
