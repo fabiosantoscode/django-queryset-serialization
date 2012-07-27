@@ -11,11 +11,9 @@ class BasicTests(TestCase):
     def test_new_serializer(self):
         this_model_should_be_found = models.Person(
             gender=models.GENDER_VALUES['male'],
-            name='Gibberish Betty Sun The Third'
-        )
+            name='Gibberish Betty Sun The Third')
         
         this_model_should_be_found.save()
-        
         
         serializer = (self.dqs.make_serializer()
             .filter(name__icontains='$a.placeholder')
@@ -98,8 +96,6 @@ class BasicTests(TestCase):
         
         self.assertTrue(p in qs)
     
-    
-    
     def test_pass_advanced(self):
         return #TODO
         #the __in lookup is not working for some reason...
@@ -134,12 +130,10 @@ class BasicTests(TestCase):
     def test_parameters_as_lists(self):
         s=self.dqs.register('passing-lists-params',
             self.dqs.make_serializer().filter(gender='$gender'),
-            models.Person.objects.all()
-            )
+            models.Person.objects.all())
         
-        self.dqs.from_iterable_parameters(
+        queryset=self.dqs.from_iterable_parameters(
             [models.GENDER_VALUES['male']],name='passing-lists-params')
-        queryset2 = queryset.all() #a copy
         
         self.assertEqual(queryset.all().count(),0)
         
@@ -172,7 +166,6 @@ class BasicTests(TestCase):
         '''
         #print s.serializer._placeholders, s.serializer._stack
         #TODO
-        
     
     def test_no_debug_print_statements(self):
         'make sure that there are no `print` statements out there'
