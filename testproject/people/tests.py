@@ -2,7 +2,7 @@ import json
 from django.test import TestCase
 import dqs
 import models
-    
+
 class BasicTests(TestCase):
     def setUp(self):
         self.dqs = dqs.DjangoQuerysetSerialization()
@@ -31,14 +31,76 @@ class BasicTests(TestCase):
     
     def test_new_serializer_serialization(self):
         '''
-        test using serializers after themselves being serialized and
-        unserialized
+        test using serializers after themselves being serialized,
+        together with their parameters, and then unserialized and
+        used.
         '''
         
         #TODO Add serialization capabilities to the serializers
     
-    def test_serializers_are_immutable(self):
-        serializer = self.dqs.make_serializer()
+    def test_serializers_can_have_their_parameters_changed(self):
+        '''
+        test the interface with which one can change a serializer's
+        parameters programatically.
+        '''
         
-        self.assertTrue(serializer is not serializer.all())
     
+    def test_serializers_are_immutable(self):
+        '''
+        Assert that serializers are immutable.
+        '''
+        qs = models.Person.objects.all()
+        models.Person(name='excludeme',
+            gender=models.GENDER_VALUES['male']).save()
+        
+        serializer = self.dqs.make_serializer()
+        serializer2 = serializer.all()
+        self.assertTrue(serializer is not serializer2)
+        
+        name = 'testing_immutable'
+        self.dqs.register(name, serializer, qs)
+        
+        self.assertTrue(self.dqs[name].get_queryset().count() == 1)
+        serializer = (serializer
+            .filter(name__icontains='this-string-not-in-name'))
+        'Still the same result, even though the serializer changed'
+        self.assertTrue(self.dqs[name].get_queryset().count() == 1)
+        
+        
+        
+        
+        
+    def test_placeholder_escaping(self):
+        p = models.Person(name='Person with a $weird name',
+            gender=models.GENDER_VALUES['male'])
+        
+        p.save()
+        
+        qs = self.dqs.register('escaping-test',
+            self.dqs.make_serializer().filter(name__icontains='$$weird'),
+            models.Person.objects.all()).get_queryset()
+        
+        self.assertTrue(p in qs)
+    
+    def test_pass_advanced(self):
+        '''
+        test that we can pass more than strings as parameters, even though the placeholder itself is a string
+        '''
+        models.Person(name='example',
+            gender=models.GENDER_VALUES['male']).save()
+        
+        models.Person(name='example',
+            gender=models.GENDER_VALUES['male']).save()
+        
+        models.Person(name='examplette',
+            gender=models.GENDER_VALUES['female']).save()
+        
+        self.dqs.register('passing-lists',
+            self.dqs.make_serializer().filter(gender__in='$gender'),
+            models.Person.objects.all()
+            ).get_queryset({'$gender':[models.GENDER_VALUES['male']]})
+        
+        #TODO
+    
+    def test_m2m_support(self):
+        pass

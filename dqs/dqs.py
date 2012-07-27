@@ -1,10 +1,4 @@
-from itertools import chain
-from functools import update_wrapper, partial
-import json
-import warnings
-from functools import update_wrapper
-import inspect
-
+import copy
 
 
 class Serialization():
@@ -26,6 +20,8 @@ class Serialization():
         '''
         
         return self.serializer.get_queryset(self.base_queryset, parameters)
+    
+
 
 class DjangoQuerysetSerialization(dict):
     '''
@@ -37,24 +33,10 @@ class DjangoQuerysetSerialization(dict):
     Internal description:
     Dictionary mapping serialization names to Serialization objects.
     
-    Usage:
-    
-    from dqs import dqs
-    
-    serializer = dqs.make_serializer(person__name__icontains='$param')
-    dqs.register('people-search', serializer, Person.objects.all())
-    
-    (.. ..)
-    
-    from dqs import dqs
-    
-    dqs['people-search'].get_queryset({'$param':'a'})
-    #gets a queryset of people with names with "a" in them.
-    
     '''
     
     def make_serializer(self):
-        return ChainableSerializer()
+        return FilterChain()
     
     def register(self, name, serializer, queryset):
         if name in self:
@@ -67,11 +49,7 @@ dqs = DjangoQuerysetSerialization()
 
 
 
-#class QuerysetMethodWrapper(object):
-#    def __init__(self, method):
-#TODO make ChainableSerializer delegate this bit of work
-
-class ChainableSerializer(object):
+class FilterChain(object):
     '''
     A new way to serialize a queryset. You can just create it, and
     change it like you would use a real queryset, except you can save
@@ -82,7 +60,7 @@ class ChainableSerializer(object):
     Example:
     
     some_queryset = SomeModel.objects.all()
-    qs = SerializedQueryset(some_queryset)
+    qs = FilterChain(some_queryset)
     
     qs = qs.exclude(banned=True)
     qs = qs.filter(something__iexact='$parameter1')
@@ -90,19 +68,25 @@ class ChainableSerializer(object):
     qs.get_queryset({'$parameter1':'something'})
     
     NOTE:
-     - If you are going to serialize to JSON, any arguments passed to
-     the queryset methods must be serializable through JSON.
-     - Every parameter must be a string.
+     - Every parameter tag ($parameter-tag) must be a string. It is
+    a good idea to keep them URL-friendly
     
     '''
     __slots__ = ['_placeholders','_stack']
     
-    def __init__(self, placeholders=[], stack=[]):
-        self._placeholders = placeholders
-        self._stack = stack
+    def __init__(self):
+        self._placeholders = []
+        self._stack = []
     
     def _copy(self):
-        return self.__class__(self._placeholders, self._stack)
+        '''
+        Make a copy of this class. very useful for immutability
+        '''
+        copied = self.__class__()
+        copied._stack = copy.deepcopy(self._stack)
+        copied._placeholders = copy.copy(self._placeholders)
+        return copied
+        
     
     def get_queryset(self, base_queryset, parameters):
         'Called by Serialization.get_queryset()'
@@ -176,62 +160,74 @@ class ChainableSerializer(object):
             'args':tuple(args),
             'kwargs':kwargs
         })
-        
-        return self._copy() #chain me!
     
     def filter(self, **kwargs):
-        return self._register('filter', **kwargs)
+        return self.method('filter', **kwargs)
     
     def exclude(self, **kwargs):
-        return self._register('exclude', **kwargs)
+        return self.method('exclude', **kwargs)
     
     def annotate(self, *args, **kwargs):
-        return self._register('annotate', *args, **kwargs)
+        return self.method('annotate', *args, **kwargs)
     
     def order_by(self, *args):
-        return self._register('order_by', *args)
+        return self.method('order_by', *args)
     
     def reverse(self):
-        return self._register('reverse')
+        return self.method('reverse')
     
     def distinct(self, *args):
-        return self._register('distinct', *args)
+        return self.method('distinct', *args)
     
     def values(self, *args):
-        return self._register('values', *args)
+        return self.method('values', *args)
     
     def values_list(self, *args):
-        return self._register('values_list', *args)
+        return self.method('values_list', *args)
     
     def dates(self, *args, **kwargs):
-        return self._register('dates', *args, **kwargs)
+        return self.method('dates', *args, **kwargs)
     
     def none(self, *args, **kwargs):
-        return self._register('none', *args, **kwargs)
+        return self.method('none', *args, **kwargs)
     
     def all(self):
-        return self._register('all')
+        return self.method('all')
     
     def select_related(self):
-        return self._register('select_related')
+        return self.method('select_related')
     
     def prefetch_related(self, *args):
-        return self._register('prefetch_related', *args)
+        return self.method('prefetch_related', *args)
     
     def extra(self, *args, **kwargs):
-        return self._register('extra', *args, **kwargs)
+        return self.method('extra', *args, **kwargs)
     
     def defer(self, *args):
-        return self._register('defer', *args)
+        return self.method('defer', *args)
     
     def only(self, *args, **kwargs):
-        return self._register('only', *args, **kwargs)
+        return self.method('only', *args, **kwargs)
     
     def using(self, alias):
-        return self._register('using', alias)
+        return self.method('using', alias)
     
     def select_for_update(self, nowait):
-        return self._register('select_for_update', nowait)
-
-
+        return self.method('select_for_update', nowait)
+    
+    def method(self, method_name, *args, **kwargs):
+        '''
+        Pass the method name instead of calling a dedicated shortcut
+        
+        .method('all') is exactly the same as .all(), internally.
+        
+        This is useful when you want to use a method for which there
+        is no shortcut, or when you want to do more complex stuff like
+        custom serializations and such.
+        '''
+        copy = self._copy()
+        
+        copy._register(method_name, *args, **kwargs)
+        
+        return copy
 

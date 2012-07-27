@@ -10,14 +10,11 @@ GENDER_CHOICES = (
 )
 GENDER_VALUES = dict([(v,k) for k,v in GENDER_CHOICES])
 class Person(models.Model):
-    class Meta:
-        verbose_name_plural = 'people'
-    gender = models.SmallIntegerField(choices=GENDER_CHOICES)
-    name = models.CharField(max_length=150)
-    
-    def __unicode__(self):
-        name, lim = self.name, 40
-        return '%s (...)' % name[:lim] if len(name) > lim else name
+    gender = models.SmallIntegerField(choices=GENDER_CHOICES, null=True)
+    name = models.CharField(max_length=150, null=True)
+    best_friend = models.ForeignKey('Person', related_name='best_friend_of', unique=True, null=True)
+    friends = models.ManyToManyField('Person', null=True)
 admin.site.register(Person)
+
 
 
