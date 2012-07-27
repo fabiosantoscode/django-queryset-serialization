@@ -30,3 +30,6 @@ pip-log.txt
 venv13
 venv14
 
+#temporary
+*~
+*.save
