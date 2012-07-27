@@ -94,27 +94,21 @@ class FilterChain(object):
         if self._placeholders and not parameters:
             raise Exception('There are required parameters to get this queryset. The required parameters are: %s.' % ', '.join(self._placeholders))
         
-        #def replace_placeholders
+        if isinstance(parameters, dict):
+            def replace_placeholders(l):
+                return [parameters.get(item,item) for item in l]
+            
+            def replace_placeholders_in_dict(d):
+                keys = replace_placeholders(d.keys())
+                vals = replace_placeholders(d.values())
+                return dict(zip(keys,vals))
+        else:
+            replace_placeholders = replace_placeholders_in_dict = lambda anything: anything
         
         queryset = base_queryset
         for operation in self._stack:
-            args_raw, kwargs_raw = operation['args'], operation['kwargs']
-            
-            #args = map(replace_placeholders, operation['args'])
-            #kwargs_keys = map(replace_placeholders, oper
-            #TODO ditch these cycles!
-            args, kwargs = [], {}
-            for argument in args_raw:
-                if argument in self._placeholders:
-                    argument = parameters[argument]
-                args.append(argument)
-            
-            for keyword, value in kwargs_raw.items():
-                if keyword in self._placeholders:
-                    keyword = parameters[keyword]
-                if value in self._placeholders:
-                    value = parameters[value]
-                kwargs[keyword] = value
+            args = replace_placeholders(operation['args'])
+            kwargs = replace_placeholders_in_dict(operation['kwargs'])
             
             method = getattr(queryset, operation['name'])
             queryset = method(*args, **kwargs)
