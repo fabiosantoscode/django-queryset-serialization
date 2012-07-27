@@ -110,7 +110,6 @@ class FilterChain(object):
                         placeholders_left.remove(val)
                     else:
                         ret.append(val)
-                print ret
                 return ret
             
             '''
@@ -130,15 +129,11 @@ class FilterChain(object):
             vals = replace_placeholders(d.values())
             keys = replace_placeholders(d.keys())
             return dict(zip(keys,vals))
-        
-        print 'starting stack', self._stack
-        print 'using parameters', parameters, 'against placeholders', placeholders_left
         calls = []
         
         for operation in self._stack:
             args = replace_placeholders(operation['args'])
             kwargs = replace_placeholders_in_dict(operation['kwargs'])
-            print 'operation:', operation
             name = operation['name']
             calls.append((name,args,kwargs))
         
@@ -151,10 +146,7 @@ class FilterChain(object):
         queryset = base_queryset
         for name, args, kwargs in calls:
             method = getattr(queryset, name)
-            print 'calling', method, args, kwargs
             queryset = method(*args, **kwargs)
-        
-        print 'stack above is okay'
         
         return queryset
     

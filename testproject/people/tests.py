@@ -1,6 +1,7 @@
 import json
 from django.test import TestCase
 import dqs
+import os
 import models
 
 class BasicTests(TestCase):
@@ -66,7 +67,6 @@ class BasicTests(TestCase):
         '''
         Assert that serializers are immutable.
         '''
-        print 'test_serializers_are_immutabel'
         qs = models.Person.objects.all()
         models.Person(name='excludeme',
             gender=models.GENDER_VALUES['male']).save()
@@ -144,3 +144,14 @@ class BasicTests(TestCase):
         
         self.assertEqual(queryset.all().count(), 1)
     
+    def test_no_debug_print_statements(self):
+        'make sure that there are no `print` statements out there'
+        
+        dqsdir = os.path.dirname(dqs.__file__)
+        
+        for file in [os.path.join(dqsdir, 'dqs.py'),
+                os.path.join(dqsdir, '__init__.py')]:
+            with open(file) as fp:
+                for line in fp:
+                    self.assertTrue(not line.strip().startswith(
+                        'print'))
