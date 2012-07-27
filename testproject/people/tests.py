@@ -83,9 +83,9 @@ class BasicTests(TestCase):
             .filter(name__icontains='this-string-not-in-name'))
         'Still the same result, even though the serializer changed'
         self.assertTrue(self.dqs[name].get_queryset().count() == 1)
-        
-        
-        
+    
+    
+    
     def test_placeholder_escaping(self):
         p = models.Person(name='Person with a $weird name',
             gender=models.GENDER_VALUES['male'])
@@ -97,6 +97,8 @@ class BasicTests(TestCase):
             models.Person.objects.all()).get_queryset()
         
         self.assertTrue(p in qs)
+    
+    
     
     def test_pass_advanced(self):
         return #TODO
@@ -124,15 +126,19 @@ class BasicTests(TestCase):
         self.assertFalse(examplette not in queryset)
     
     def test_m2m_support(self):
-        pass
+        pass #TODO
+    
+    def test_util_functions(self):
+        pass #TODO
     
     def test_parameters_as_lists(self):
-        return #TODO
-        queryset = self.dqs.register('passing-lists',
-            self.dqs.make_serializer().filter(gender__eq='$gender'),
+        s=self.dqs.register('passing-lists-params',
+            self.dqs.make_serializer().filter(gender='$gender'),
             models.Person.objects.all()
-            ).get_queryset([models.GENDER_VALUES['male']])
+            )
         
+        self.dqs.from_iterable_parameters(
+            [models.GENDER_VALUES['male']],name='passing-lists-params')
         queryset2 = queryset.all() #a copy
         
         self.assertEqual(queryset.all().count(),0)
@@ -143,6 +149,30 @@ class BasicTests(TestCase):
             gender=models.GENDER_VALUES['female']).save()
         
         self.assertEqual(queryset.all().count(), 1)
+    
+    def test_reduce_name_collisions(self):
+        '''
+        Avoid name collisions with dictionary keys, since it could
+        happen that .filter(gender='$gender') will cause a name
+        collision when unserializing.
+        
+        This will not mean that the user will have to pass in the
+        unescaped parameters. We must be wary that it is not always
+        the user who gives the parameters, cleanly through a dict.
+        '__' and '$' are not very good to have spread about an URL, 
+        for example.
+        
+        The avoidance is achieved through storing the serializer's
+        kwargs (both keys and values), and args, unchanged, and then
+        checking if they are placeholders using the utility
+        funcs _is_siphon_placeholder and is_underscore_placeholder 
+        together. This means that unescaping of escaped values must 
+        also happen, but that is tested in test_placeholder_escaping.
+        
+        '''
+        #print s.serializer._placeholders, s.serializer._stack
+        #TODO
+        
     
     def test_no_debug_print_statements(self):
         'make sure that there are no `print` statements out there'
@@ -155,3 +185,18 @@ class BasicTests(TestCase):
                 for line in fp:
                     self.assertTrue(not line.strip().startswith(
                         'print'))
+    
+    def test_from_url(self):
+        pass #TODO
+    
+    def test_from_request_data(self):
+        pass #TODO
+    
+    def test_from_json(self):
+        pass #TODO
+    
+    def test_forms(self):
+        pass #TODO
+    
+    def test_model_persistance(self):
+        pass #TODO

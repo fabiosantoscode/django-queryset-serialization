@@ -1,6 +1,6 @@
 import itertools
 import copy
-
+import utils
 
 
 class Serialization():
@@ -21,8 +21,9 @@ class Serialization():
         
         '''
         
-        return self.serializer.get_queryset(self.base_queryset, parameters)
-    
+        return self.serializer.get_queryset(self.base_queryset,
+            parameters)
+
 
 
 class DjangoQuerysetSerialization(dict):
@@ -42,10 +43,30 @@ class DjangoQuerysetSerialization(dict):
     
     def register(self, name, serializer, queryset):
         if name in self:
-            raise Exception('%s was already registered in Django-queryset-serialization' % name)
+            raise Exception('%s was already registered in this '
+                + 'django-queryset-serialization instance' % name)
         serialization = Serialization(name, serializer, queryset)
         self[name] = serialization
         return serialization
+    
+    def from_dictionary_parameters(self, d, name=None):
+        name = name or d['name']
+        serialization = self[name]
+    
+    def from_iterable_parameters(self, iterable, name=None):
+        iterable = iter(iterable)
+        name = name or iterable.next()
+        serialization = self[name]
+        parameters = utils.parameters_to_dict(
+            serialization.serializer._placeholders, iterable)
+        
+        return serialization.get_queryset(parameters)
+    
+    def from_url(self, url, name=None):
+        url = url.strip().strip('/')
+        components = url.split('/')
+        return self.from_iterable(url, name)
+
 
 dqs = DjangoQuerysetSerialization()
 
@@ -81,6 +102,8 @@ class FilterChain(object):
         self._placeholders = []
         self._stack = []
     
+    placeholders = property(lambda s:s._placeholders)
+    
     def _copy(self):
         '''
         Make a copy of this class. very useful for immutability
@@ -89,41 +112,33 @@ class FilterChain(object):
         copied._stack = copy.deepcopy(self._stack)
         copied._placeholders = copy.copy(self._placeholders)
         return copied
-        
     
     def get_queryset(self, base_queryset, parameters):
-        'Called by Serialization.get_queryset()'
+        'called by Serializer.get_queryset()'
         
         if self._placeholders and not parameters:
-            raise Exception('There are required parameters to get this queryset. The required parameters are: %s.' % ', '.join(self._placeholders))
+            raise Exception('There are required parameters to get '
+                + 'this queryset. The required parameters are: %s.'
+                % ', '.join(self._placeholders))
         
-        ''
+        'copy the placeholders. we are going to consume them'
         placeholders_left = list(self._placeholders)
         
-        if isinstance(parameters, dict):
-            def replace_placeholders(l):
-                ret = []
-                for val in l:
-                    val = FilterChain.unescape(val)
-                    if val in placeholders_left:
-                        ret.append(parameters[val])
-                        placeholders_left.remove(val)
-                    else:
-                        ret.append(val)
-                return ret
-            
+        
+        def replace_placeholders(l):
             '''
-        elif isinstance(parameters, list):
-            placeholders_left.reverse()
-            def replace_placeholders(l):
-                ret = []
-                for val in l:
-                    if val == placeholders_left[-1]:
-                        
-                    
-                return [placeholders_left.pop() if val==l[-1] else ]'''
-        elif parameters is None:
-            replace_placeholders = lambda anything: anything
+            Replace placeholder items in the input list (args,
+            kwargs.keys() and kwargs.values()) with
+            '''
+            ret = []
+            for val in l:
+                val = FilterChain.unescape(val)
+                if val in placeholders_left:
+                    ret.append(parameters[val])
+                    placeholders_left.remove(val)
+                else:
+                    ret.append(val)
+            return ret
         
         def replace_placeholders_in_dict(d):
             vals = replace_placeholders(d.values())
@@ -150,6 +165,7 @@ class FilterChain(object):
         
         return queryset
     
+    #TODO put these in an utility module
     @classmethod
     def _is_siphon_placeholder(cls, s):
         return s.startswith('$') and not s.startswith('$$')
