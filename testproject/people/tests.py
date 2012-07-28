@@ -125,7 +125,19 @@ class BasicTests(TestCase):
         pass #TODO
     
     def test_util_functions(self):
-        pass #TODO
+        from dqs.utils import *
+        
+        self.assertTrue(not is_string_placeholder('something'))
+        self.assertTrue(not is_string_placeholder('$$something'))
+        self.assertTrue(is_string_placeholder('$something'))
+
+        self.assertTrue(is_kwarg_key_placeholder('__sthSth_'))
+        self.assertTrue(not is_kwarg_key_placeholder('__sth-sth'))
+        self.assertTrue(not is_kwarg_key_placeholder('____sthsth'))
+
+        self.assertEqual(clean_placeholder('$placeholder'),'placeholder')
+        self.assertEqual(unescape_non_placeholder('$$placeholder'),'$placeholder')
+
     
     def test_parameters_as_lists(self):
         s=self.dqs.register('passing-lists-params',

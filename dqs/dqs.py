@@ -132,7 +132,7 @@ class FilterChain(object):
             '''
             ret = []
             for val in l:
-                val = FilterChain.unescape(val)
+                val = utils.unescape(val)
                 if val in placeholders_left:
                     ret.append(parameters[val])
                     placeholders_left.remove(val)
@@ -165,46 +165,6 @@ class FilterChain(object):
         
         return queryset
     
-    #TODO put these in an utility module
-    @classmethod
-    def _is_siphon_placeholder(cls, s):
-        return s.startswith('$') and not s.startswith('$$')
-    
-    @classmethod
-    def _is_underscore_placeholder(cls, s):
-        return s.startswith('__') and not s.startswith('____')
-    
-    @classmethod
-    def _is_placeholder(cls, s):
-        siphon = cls._is_siphon_placeholder(s)
-        underscore = cls._is_underscore_placeholder(s)
-        return siphon or underscore
-    
-    @classmethod
-    def _unescape_non_placeholder(cls, s):
-        assert not cls._is_placeholder(s)
-        if s.startswith('$'):
-            return s[1:]
-        elif s.startswith('__'):
-            return s[2:]
-        else:
-            return s
-    
-    @classmethod
-    def _clean_placeholder(cls, s):
-        assert cls._is_placeholder(s)
-        if s.startswith('$'):
-            return s[1:]
-        elif s.startswith('__'):
-            return s[2:]
-    
-    @classmethod
-    def unescape(cls, s):
-        if cls._is_placeholder(s):
-            return cls._clean_placeholder(s)
-        else:
-            return cls._unescape_non_placeholder(s)
-    
     def _register(self, fname, *args, **kwargs):
         '''
         add a configurable queryset function call. Takes the queryset
@@ -216,15 +176,15 @@ class FilterChain(object):
         '''
         
         def find_placeholder(arg):
-            if FilterChain._is_placeholder(arg):
-                arg = FilterChain._clean_placeholder(arg)
+            if utils.is_placeholder(arg):
+                arg = utils.clean_placeholder(arg)
                 if arg in self._placeholders:
                     raise ValueError(
                         '%s was already used as a placeholder!' % arg)
                 self._placeholders.append(arg)
                 return arg
             else:
-                return FilterChain._unescape_non_placeholder(arg)
+                return utils.unescape_non_placeholder(arg)
         
         args = map(find_placeholder, args)
         kwargs_keys = map(find_placeholder, kwargs.keys())
