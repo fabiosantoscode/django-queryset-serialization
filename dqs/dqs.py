@@ -65,7 +65,7 @@ class DjangoQuerysetSerialization(dict):
     def from_url(self, url, name=None):
         url = url.strip().strip('/')
         components = url.split('/')
-        return self.from_iterable(url, name)
+        return self.from_iterable_parameters(components, name)
 
 
 dqs = DjangoQuerysetSerialization()

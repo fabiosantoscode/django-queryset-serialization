@@ -223,7 +223,30 @@ class BasicTests(TestCase):
                         'print'))
     
     def test_from_url(self):
-        pass #TODO
+        qs = models.Person.objects.all()
+        models.Person(name='somename',
+            gender=models.GENDER_VALUES['male']).save()
+        
+        models.Person(name='$somename',
+            gender=models.GENDER_VALUES['male']).save()
+            
+        models.Person(name='__somename',
+            gender=models.GENDER_VALUES['male']).save()
+        
+        serializer = self.dqs.make_serializer().filter(name='$name')
+        self.dqs.register('urlserialization1', serializer, models.Person.objects.all())
+        
+        self.assertEqual(len(self.dqs.from_url('/urlserialization1/somename')),1)
+        self.assertEqual(len(self.dqs.from_url('/__somename', 'urlserialization1')),1)
+        self.assertEqual(len(self.dqs.from_url('/$somename', 'urlserialization1')),1)
+        
+        self.assertEqual(len(self.dqs.from_url('/somename', 'urlserialization1')),1)
+        
+        self.assertEqual(len(self.dqs.from_url('/urlserialization1/wrongname')),0)
+        self.assertEqual(len(self.dqs.from_url('/wrongname', 'urlserialization1')),0)
+        
+        
+        
     
     def test_from_request_data(self):
         pass #TODO
