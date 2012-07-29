@@ -97,13 +97,12 @@ class BasicTests(TestCase):
         self.assertTrue(p in qs)
     
     def test_pass_advanced(self):
-        return #TODO
-        #the __in lookup is not working for some reason...
         '''
         test that we can pass more than strings as parameters, even though the placeholder itself is a string
         '''
-        models.Person(name='example',
-            gender=models.GENDER_VALUES['male']).save()
+        examplea = models.Person(name='examplea',
+            gender=models.GENDER_VALUES['male'])
+        examplea.save()
         
         example = models.Person(name='example',
             gender=models.GENDER_VALUES['male'])
@@ -113,13 +112,18 @@ class BasicTests(TestCase):
             gender=models.GENDER_VALUES['female'])
         examplette.save()
         
-        queryset = self.dqs.register('passing-lists',
-            self.dqs.make_serializer().filter(gender__in='$gender'),
-            models.Person.objects.all()
-            ).get_queryset({'gender':[models.GENDER_VALUES['male']]})
+        qs = self.dqs.register('name', self.dqs.make_serializer()
+                .filter(name__in='$name'),
+            models.Person.objects.all())
         
-        self.assertTrue(example in queryset)
-        self.assertFalse(examplette not in queryset)
+        find_examplette = qs.get_queryset({
+            'name':['examplette']})
+        
+        find_everyone_else = qs.get_queryset({
+            'name':['example', 'examplette']})
+        
+        self.assertTrue(examplette in find_examplette)
+        self.assertTrue(examplea not in find_everyone_else)
     
     def test_m2m_support(self):
         pass #TODO
@@ -147,6 +151,12 @@ class BasicTests(TestCase):
         queryset=self.dqs.from_iterable_parameters(
             [models.GENDER_VALUES['male']],name='passing-lists-params')
         
+        '''first parameter in the list if the passed name argument is
+        null or absent'''
+        queryset2=self.dqs.from_iterable_parameters(
+            ['passing-lists-params', models.GENDER_VALUES['male']])
+        
+        self.assertEqual(queryset.all().count(),0)
         self.assertEqual(queryset.all().count(),0)
         
         models.Person(name='someone',
@@ -155,6 +165,27 @@ class BasicTests(TestCase):
             gender=models.GENDER_VALUES['female']).save()
         
         self.assertEqual(queryset.all().count(), 1)
+        self.assertEqual(queryset2.all().count(), 1)
+    
+    def test_escaping_interchangeable(self):
+        '''test that users can still use `$names-like-these` in their
+        parameters dictionary keys, although the requirement is
+        actually that they pass `names-like-these`, without $ or __
+        '''
+        
+        s = self.dqs.register('names',
+            self.dqs.make_serializer().filter(gender='$gender'),
+            models.Person.objects.all())
+        
+        male_gender = models.GENDER_VALUES['male']
+        
+        models.Person(name='someone',
+            gender=male_gender).save()
+        
+        for paramss in [{'$gender':male_gender},
+                {'gender':male_gender}]:
+            qs = s.get_queryset(paramss)
+            self.assertTrue(len(qs) == 1)
     
     def test_reduce_name_collisions(self):
         '''

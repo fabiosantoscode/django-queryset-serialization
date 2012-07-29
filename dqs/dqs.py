@@ -116,6 +116,8 @@ class FilterChain(object):
     def get_queryset(self, base_queryset, parameters):
         'called by Serializer.get_queryset()'
         
+        parameters = parameters if parameters else {}
+        
         if self._placeholders and not parameters:
             raise Exception('There are required parameters to get '
                 + 'this queryset. The required parameters are: %s.'
@@ -124,20 +126,27 @@ class FilterChain(object):
         'copy the placeholders. we are going to consume them'
         placeholders_left = list(self._placeholders)
         
+        def fix_dict_keys(key_and_val):
+            key, val = key_and_val
+            if utils.is_placeholder(key):
+                key = utils.clean_placeholder(key)
+            return key, val
+        
+        parameters = dict(map(fix_dict_keys, parameters.items()))
         
         def replace_placeholders(l):
             '''
             Replace placeholder items in the input list (args,
-            kwargs.keys() and kwargs.values()) with
+            kwargs.keys() and kwargs.values()) with the user parameters
             '''
             ret = []
             for val in l:
-                val = utils.unescape(val)
                 if val in placeholders_left:
-                    ret.append(parameters[val])
+                    to_append = parameters[val]
                     placeholders_left.remove(val)
                 else:
-                    ret.append(val)
+                    to_append = val
+                ret.append(to_append)
             return ret
         
         def replace_placeholders_in_dict(d):

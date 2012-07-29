@@ -46,11 +46,12 @@ def unescape_non_placeholder(s):
         return s
 
 def clean_placeholder(s):
-    assert is_placeholder(s)
-    if s.startswith('$'):
-        return s[1:]
-    elif s.startswith('__'):
-        return s[2:]
+    if not is_placeholder(s):
+        raise ValueError
+    if is_string_placeholder(s):
+        return s[1:] # $XXXXXX
+    elif is_kwarg_key_placeholder(s):
+        return s[2:] # __XXXXXXX
 
 def unescape(s):
     if is_placeholder(s):
