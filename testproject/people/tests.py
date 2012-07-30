@@ -260,45 +260,50 @@ class BasicTests(TestCase):
         import dqs.forms
         from django import forms
         
-        supposedly_called_functions = ['get_fields','clean_field1',
-            'clean_field2','__init__']
-        called_functions = []
+        supposedly_called_functions = set(['clean_field1', '__init__'])
+        
+        person = models.Person(name='name')
+        person.save()
+        serializer = (self.dqs.make_serializer()
+            .all()
+            .filter(name='$field1'))
+        self.dqs.register('form-test', serializer, 
+            models.Person.objects)
         
         class DqsForm(dqs.forms.Form):
-            def __init__(self, *args, **kwargs):
-                global called_functions
-                called_functions.append('__init__')
-                return super(DqsForm, self).__init__(*args,**kwargs)
+            serialization = self.dqs['form-test']
             
-            def get_fields(self):
-                global called_functions
-                called_functions.append('get_fields')
-                return {'field1':forms.CharField(max_length=13)}
-            
-            field2 = forms.CharField(max_length=13)
+            field1 = forms.CharField(max_length=13)
             
             def clean_field1(self):
-                global called_functions
-                called_functions.append('clean_field1')
+                self.called_functions=['clean_field1']
                 return self.cleaned_data['field1']
-            
-            def clean_field2(self):
-                global called_functions
-                called_functions.append('clean_field2')
-                return self.cleaned_data['field2']
         
-        form = DqsForm()
+        form = DqsForm(dict(field1='name'))
         
-        self.assertEquals(called_functions, 
-            supposedly_called_functions)
+        qs = form.get_queryset()
         
+        self.assertTrue('clean_field1' in form.called_functions)
+        self.assertTrue(person in qs)
         
-    def test_modelforms(self):
-        import dqs.forms
-        class DqsModelForm(dqs.forms.ModelForm):
-            model = models.Person
+        # Test giving it the serialization on __init__
+        class DqsForm2(dqs.forms.Form):
+            kwargfield = forms.CharField(max_length=8)
         
-        self.assertTrue('name' in DqsModelForm().fields)
+        serializer = (self.dqs.make_serializer()
+            .all()
+            .filter(__kwargfield='name'))
+        self.dqs.register('form-test2', serializer, 
+            models.Person.objects)
+        
+        try:
+            DqsForm2()
+            self.assertFalse('Exception was not raised!')
+        except AttributeError:
+            pass
+        
+        self.assertTrue(person in DqsForm2(dict(kwargfield='name'), self.dqs['form-test2']).get_queryset())
+        
     
     def test_model_persistance(self):
         pass #TODO
