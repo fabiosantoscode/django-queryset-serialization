@@ -1,4 +1,4 @@
-import json
+﻿import json
 from django.test import TestCase
 import dqs
 import os
@@ -255,7 +255,50 @@ class BasicTests(TestCase):
         pass #TODO
     
     def test_forms(self):
-        pass #TODO
+        'Test django-queryset-serialization forms and document them'
+        
+        import dqs.forms
+        from django import forms
+        
+        supposedly_called_functions = ['get_fields','clean_field1',
+            'clean_field2','__init__']
+        called_functions = []
+        
+        class DqsForm(dqs.forms.Form):
+            def __init__(self, *args, **kwargs):
+                global called_functions
+                called_functions.append('__init__')
+                return super(DqsForm, self).__init__(*args,**kwargs)
+            
+            def get_fields(self):
+                global called_functions
+                called_functions.append('get_fields')
+                return {'field1':forms.CharField(max_length=13)}
+            
+            field2 = forms.CharField(max_length=13)
+            
+            def clean_field1(self):
+                global called_functions
+                called_functions.append('clean_field1')
+                return self.cleaned_data['field1']
+            
+            def clean_field2(self):
+                global called_functions
+                called_functions.append('clean_field2')
+                return self.cleaned_data['field2']
+        
+        form = DqsForm()
+        
+        self.assertEquals(called_functions, 
+            supposedly_called_functions)
+        
+        
+    def test_modelforms(self):
+        import dqs.forms
+        class DqsModelForm(dqs.forms.ModelForm):
+            model = models.Person
+        
+        self.assertTrue('name' in DqsModelForm().fields)
     
     def test_model_persistance(self):
         pass #TODO
