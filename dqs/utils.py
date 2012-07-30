@@ -1,4 +1,4 @@
-import re
+﻿import re
 
 def parameters_to_dict(placeholders, parameters):
     '''
