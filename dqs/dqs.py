@@ -51,7 +51,7 @@ class DjangoQuerysetSerialization(dict):
     
     def from_dictionary_parameters(self, d, name=None):
         name = name or d['name']
-        serialization = self[name]
+        return self[name].get_queryset(d)
     
     def from_iterable_parameters(self, iterable, name=None):
         iterable = iter(iterable)
