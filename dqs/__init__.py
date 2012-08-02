@@ -16,4 +16,4 @@ dqs['people-search'].get_queryset({'$param':'a'})
 #returns a queryset of people with names with "a" in them.
 '''
 
-from dqs import *
+from dqs import dqs
