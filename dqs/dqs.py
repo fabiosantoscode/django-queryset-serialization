@@ -1,4 +1,4 @@
-﻿import copy
+import copy
 
 import utils
 
@@ -43,8 +43,8 @@ class DjangoQuerysetSerialization(dict):
     
     def register(self, name, serializer, queryset):
         if name in self:
-            raise Exception('%s was already registered in this '
-                + 'django-queryset-serialization instance' % name)
+            raise Exception(('%s was already registered in this '
+                + 'django-queryset-serialization instance') % name)
         serialization = Serialization(name, serializer, queryset)
         self[name] = serialization
         return serialization
@@ -96,7 +96,8 @@ class FilterChain(object):
     a good idea to keep them URL-friendly
     
     '''
-    __slots__ = ['_placeholders','_stack']
+    
+    __slots__ = ['_placeholders', '_stack']
     
     def __init__(self):
         self._placeholders = []
