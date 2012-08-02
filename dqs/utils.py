@@ -1,4 +1,4 @@
-﻿import re
+import re
 
 def parameters_to_dict(placeholders, parameters):
     '''
@@ -22,15 +22,25 @@ def parameters_to_dict(placeholders, parameters):
     return dict(zip(placeholders, parameters))
 
 def is_string_placeholder(s):
-    return s.startswith('$') and not s.startswith('$$')
+    try:
+        return s.startswith('$') and not s.startswith('$$')
+    except AttributeError:
+        pass
+    return False
 
 # from http://stackoverflow.com/a/10134719/1011311
 kwarg_re = re.compile(r'^__[^\d\W]\w*$')
 def is_kwarg_key_placeholder(s):
-    if s.startswith('____'):
+    try:
+        if s.startswith('____'):
+            return False
+    except AttributeError: #startswith
         return False
-    return bool(kwarg_re.findall(s))
-
+    
+    if s.startswith('__'):
+        return bool(kwarg_re.findall(s))
+        
+    
 def is_placeholder(s):
     siphon = is_string_placeholder(s)
     underscore = is_kwarg_key_placeholder(s)
@@ -38,13 +48,16 @@ def is_placeholder(s):
 
 def unescape_non_placeholder(s):
     assert not is_placeholder(s)
-    if s.startswith('$'):
-        return s[1:]
-    elif s.startswith('__'):
-        return s[2:]
-    else:
+    try:
+        if s.startswith('$'):
+            return s[1:]
+        elif s.startswith('__'):
+            return s[2:]
+        else:
+            return s
+    except AttributeError: #startswith
         return s
-
+    
 def clean_placeholder(s):
     if not is_placeholder(s):
         raise ValueError
