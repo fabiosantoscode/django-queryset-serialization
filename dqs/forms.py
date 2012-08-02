@@ -1,4 +1,4 @@
-﻿from django import forms
+from django import forms
 
 
 
@@ -27,9 +27,12 @@ class Form(forms.Form):
     
     '''
     
+    name = forms.CharField(widget=forms.widgets.HiddenInput())
+    
     def __init__(self, data=None, serialization=None, **kwargs):
         super(Form, self).__init__(data, **kwargs)
         self.serialization = serialization or self.serialization
+        self.fields['name'].initial = self.serialization.name
     
     def get_queryset(self):
         if not self.is_valid():
