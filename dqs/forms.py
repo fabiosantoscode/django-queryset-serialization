@@ -35,6 +35,5 @@ class Form(forms.Form):
         self.fields['name'].initial = self.serialization.name
     
     def get_queryset(self):
-        name = self.serialization.name
         parameters = getattr(self, 'cleaned_data', {}) #omg!
-        return self.serialization.get_queryset(parameters, name)
+        return self.serialization.get_queryset(parameters)
