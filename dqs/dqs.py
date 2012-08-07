@@ -41,6 +41,9 @@ class DjangoQuerysetSerialization(dict):
     def make_serializer(self):
         return FilterChain()
     
+    def instant(self, serializer, queryset):
+        return Serialization(None, serializer, queryset)
+    
     def register(self, name, serializer, queryset):
         if name in self:
             raise Exception(('%s was already registered in this '
