@@ -1,12 +1,12 @@
 ﻿import json
 from django.test import TestCase
-import dqs
+from dqs import serialization
 import os
 import models
 
 class BasicTests(TestCase):
     def setUp(self):
-        self.dqs = dqs.DjangoQuerysetSerialization()
+        self.dqs = serialization.DjangoQuerysetSerialization()
 
     def test_new_serializer(self):
         this_model_should_be_found = models.Person(
@@ -148,24 +148,23 @@ class BasicTests(TestCase):
             self.dqs.make_serializer().filter(gender='$gender'),
             models.Person.objects.all())
         
-        queryset=self.dqs.from_iterable_parameters(
-            [models.GENDER_VALUES['male']],name='passing-lists-params')
-        
-        '''first parameter in the list if the passed name argument is
-        null or absent'''
-        queryset2=self.dqs.from_iterable_parameters(
-            ['passing-lists-params', models.GENDER_VALUES['male']])
+        queryset = (self.dqs['passing-lists-params']
+            .from_iterable_parameters([models.GENDER_VALUES['male']]))
         
         self.assertEqual(queryset.all().count(),0)
-        self.assertEqual(queryset.all().count(),0)
         
-        models.Person(name='someone',
-            gender=models.GENDER_VALUES['male']).save()
-        models.Person(name='someoneelse',
-            gender=models.GENDER_VALUES['female']).save()
+        p1 = models.Person(name='someone',
+            gender=models.GENDER_VALUES['male'])
+        p2 = models.Person(name='someoneelse',
+            gender=models.GENDER_VALUES['female'])
+        
+        p1.save()
+        p2.save()
         
         self.assertEqual(queryset.all().count(), 1)
-        self.assertEqual(queryset2.all().count(), 1)
+        
+        self.assertTrue(p1 in queryset.all())
+        self.assertTrue(p2 not in queryset.all())
     
     def test_escaping_interchangeable(self):
         '''test that users can still use `$names-like-these` in their
@@ -209,18 +208,6 @@ class BasicTests(TestCase):
         '''
         #print s.serializer._placeholders, s.serializer._stack
         #TODO
-    
-    def test_no_debug_print_statements(self):
-        'make sure that there are no `print` statements out there'
-        
-        dqsdir = os.path.dirname(dqs.__file__)
-        
-        for file in [os.path.join(dqsdir, 'dqs.py'),
-                os.path.join(dqsdir, '__init__.py')]:
-            with open(file) as fp:
-                for line in fp:
-                    self.assertTrue(not line.strip().startswith(
-                        'print'))
     
     def test_from_url(self):
         qs = models.Person.objects.all()
@@ -274,16 +261,12 @@ class BasicTests(TestCase):
             serialization = self.dqs['form-test']
             
             field1 = forms.CharField(max_length=13)
-            
-            def clean_field1(self):
-                self.called_functions=['clean_field1']
-                return self.cleaned_data['field1']
         
         form = DqsForm(dict(field1='name'))
         
+        self.assertTrue(form.is_valid())
         qs = form.get_queryset()
         
-        self.assertTrue('clean_field1' in form.called_functions)
         self.assertTrue(person in qs)
         
         # Test giving it the serialization on __init__
@@ -302,8 +285,10 @@ class BasicTests(TestCase):
         except AttributeError:
             pass
         
-        self.assertTrue(person in DqsForm2(dict(kwargfield='name'), self.dqs['form-test2']).get_queryset())
+        form2 = DqsForm2(dict(kwargfield='name'), self.dqs['form-test2'])
+        form2.is_valid()
         
+        self.assertTrue(person in form2.get_queryset())
     
     def test_model_persistance(self):
         pass #TODO

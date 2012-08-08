@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.db import models
-from dqs import dqs
+from dqs.serialization import dqs
 
 # Create your models here.
 

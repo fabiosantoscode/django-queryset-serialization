@@ -27,13 +27,14 @@ class Form(forms.Form):
     
     '''
     
-    name = forms.CharField(widget=forms.widgets.HiddenInput())
+    name = forms.CharField(widget=forms.widgets.HiddenInput(), required=False)
     
     def __init__(self, data=None, serialization=None, **kwargs):
         super(Form, self).__init__(data, **kwargs)
         self.serialization = serialization or self.serialization
-        self.fields['name'].initial = self.serialization.name
+        assert self.serialization
     
     def get_queryset(self):
-        parameters = getattr(self, 'cleaned_data', {}) #omg!
+        parameters = self.cleaned_data #omg!
         return self.serialization.get_queryset(parameters)
+

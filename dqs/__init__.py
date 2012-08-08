@@ -1,18 +1,18 @@
 '''
 Basic Usage:
-    
-from dqs import dqs
 
-serializer = dqs.make_serializer(person__name__icontains='$param')
+#serialization.py
+from dqs import serialization
+
+serializer = dqs.make_serializer().filter(person__name__icontains='$param')
 #notice the '$param' tag.
 
-dqs.register('people-search', serializer, Person.objects.all())
+serialization.dqs.register('people-search', serializer, Person.objects)
 
+#views.py
+from dqs import serialization
 (...)
-
-from dqs import dqs
-
-dqs['people-search'].get_queryset({'$param':'a'})
-#returns a queryset of people with names with "a" in them.
+serialization.dqs['people-search'].get_queryset({'$param':'a'})
+#returns Person.objects.filter(person__name__icontains='a')
 '''
 

@@ -1,6 +1,7 @@
 import copy
 
-import utils
+from dqs import utils
+
 
 
 class Serialization():
@@ -9,7 +10,7 @@ class Serialization():
         self.base_queryset = base_queryset
         self.serializer = serializer
     
-    def get_queryset(self, parameters=None):
+    def get_queryset(self, parameters={}):
         '''
         Get a queryset by executing the operations to the base
         queryset registered in the DjangoQuerysetSerialization
@@ -23,6 +24,12 @@ class Serialization():
         
         return self.serializer.get_queryset(self.base_queryset,
             parameters)
+    
+    def from_iterable_parameters(self, iterable):
+        parameters = utils.parameters_to_dict(
+            self.serializer._placeholders, iterable)
+        
+        return self.get_queryset(parameters)
 
 
 
@@ -51,25 +58,12 @@ class DjangoQuerysetSerialization(dict):
         serialization = Serialization(name, serializer, queryset)
         self[name] = serialization
         return serialization
-    
-    def from_dictionary_parameters(self, d, name=None):
-        name = name or d['name']
-        return self[name].get_queryset(d)
-    
-    def from_iterable_parameters(self, iterable, name=None):
-        iterable = iter(iterable)
-        name = name or iterable.next()
-        serialization = self[name]
-        parameters = utils.parameters_to_dict(
-            serialization.serializer._placeholders, iterable)
-        
-        return serialization.get_queryset(parameters)
-    
+
     def from_url(self, url, name=None):
         url = url.strip().strip('/')
         components = url.split('/')
-        return self.from_iterable_parameters(components, name)
-
+        name = name or components.pop(0)
+        return self[name].from_iterable_parameters(components)
 
 dqs = DjangoQuerysetSerialization()
 
@@ -123,9 +117,11 @@ class FilterChain(object):
         parameters = parameters if parameters else {}
         
         if self._placeholders and not parameters:
-            raise Exception('There are required parameters to get '
-                + 'this queryset. The required parameters are: %s.'
-                % ', '.join(self._placeholders))
+            text = ('There are required parameters to get this '
+                + 'queryset. The required parameters are: %s. The '
+                + 'provided parameters were: %s')
+            raise Exception(text % (repr(self._placeholders), repr(
+                parameters)) )
         
         'copy the placeholders. we are going to consume them'
         placeholders_left = list(self._placeholders)
@@ -167,7 +163,7 @@ class FilterChain(object):
         
         if len(placeholders_left) > 0:
             raise Exception(
-                '%d parameters were not given to get_queryset:' %
+                '%d parameters were not given to get_queryset: %s' %
                 (len(placeholders_left), ', '.join(
                 placeholders_left)))
         
