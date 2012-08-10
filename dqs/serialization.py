@@ -5,8 +5,7 @@ from dqs import utils
 
 
 class Serialization():
-    def __init__(self, name, serializer, base_queryset):
-        self.name = name
+    def __init__(self, serializer, base_queryset):
         self.base_queryset = base_queryset
         self.serializer = serializer
     
@@ -36,7 +35,7 @@ class Serialization():
 class DjangoQuerysetSerialization(dict):
     '''
     Central class of the django-queryset-serialization system. New
-    serializations are registered here, and 
+    serializations can be registered here
     
     Subclass of dict
     
@@ -49,13 +48,13 @@ class DjangoQuerysetSerialization(dict):
         return FilterChain()
     
     def instant(self, serializer, queryset):
-        return Serialization(None, serializer, queryset)
+        return Serialization(serializer, queryset)
     
     def register(self, name, serializer, queryset):
         if name in self:
             raise Exception(('%s was already registered in this '
                 + 'django-queryset-serialization instance') % name)
-        serialization = Serialization(name, serializer, queryset)
+        serialization = Serialization(serializer, queryset)
         self[name] = serialization
         return serialization
 
