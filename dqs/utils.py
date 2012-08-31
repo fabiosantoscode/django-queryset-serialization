@@ -12,7 +12,7 @@ def parameters_to_dict(placeholders, parameters):
 
     '''
     
-    'raise TypeErrors'
+    'raise TypeErrors and evaluate generators.'
     parameters = list(parameters)
     placeholders = list(placeholders)
     

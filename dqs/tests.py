@@ -1,16 +1,30 @@
 ﻿import json
+
 from django.test import TestCase
-from dqs import serialization
-import os
-import models
+from django.db import models
+
+from dqs.utils import *
+import serialization
+
+
+GENDER_VALUES={'male':1,'female':2}
+GENDER_CHOICES = GENDER_VALUES.items()
+
+class Person(models.Model):
+    gender = models.SmallIntegerField(choices=GENDER_CHOICES, null=True)
+    name = models.CharField(max_length=150, null=True)
+    best_friend = models.ForeignKey('Person', related_name='best_friend_of', unique=True, null=True)
+    friends = models.ManyToManyField('Person', null=True)
+
+
 
 class BasicTests(TestCase):
     def setUp(self):
         self.dqs = serialization.DjangoQuerysetSerialization()
 
     def test_new_serializer(self):
-        this_model_should_be_found = models.Person(
-            gender=models.GENDER_VALUES['male'],
+        this_model_should_be_found = Person(
+            gender=GENDER_VALUES['male'],
             name='Gibberish Betty Sun The Third')
         
         this_model_should_be_found.save()
@@ -20,7 +34,7 @@ class BasicTests(TestCase):
             .filter(name__icontains='Betty')
             .all())
         
-        self.dqs.register('name2', serializer, models.Person.objects.all())
+        self.dqs.register('name2', serializer, Person.objects.all())
         
         qs = self.dqs['name2'].get_queryset({
             'a.placeholder':'Gibberish'})
@@ -33,7 +47,7 @@ class BasicTests(TestCase):
             .filter(name__icontains='Betty')
             .all())
         
-        self.dqs.register('name1', serializer, models.Person.objects.all())
+        self.dqs.register('name1', serializer, Person.objects.all())
         self.assertTrue(len(serializer._stack) == 3)
         
         qs = self.dqs['name1'].get_queryset({
@@ -65,9 +79,9 @@ class BasicTests(TestCase):
         '''
         Assert that serializers are immutable.
         '''
-        qs = models.Person.objects.all()
-        models.Person(name='excludeme',
-            gender=models.GENDER_VALUES['male']).save()
+        qs = Person.objects.all()
+        Person(name='excludeme',
+            gender=GENDER_VALUES['male']).save()
         
         serializer = self.dqs.make_serializer()
         serializer2 = serializer.all()
@@ -85,14 +99,14 @@ class BasicTests(TestCase):
     
     
     def test_placeholder_escaping(self):
-        p = models.Person(name='Person with a $weird name',
-            gender=models.GENDER_VALUES['male'])
+        p = Person(name='Person with a $weird name',
+            gender=GENDER_VALUES['male'])
         
         p.save()
         
         qs = self.dqs.register('escaping-test',
             self.dqs.make_serializer().filter(name__icontains='$$weird'),
-            models.Person.objects.all()).get_queryset()
+            Person.objects.all()).get_queryset()
         
         self.assertTrue(p in qs)
     
@@ -100,21 +114,21 @@ class BasicTests(TestCase):
         '''
         test that we can pass more than strings as parameters, even though the placeholder itself is a string
         '''
-        examplea = models.Person(name='examplea',
-            gender=models.GENDER_VALUES['male'])
+        examplea = Person(name='examplea',
+            gender=GENDER_VALUES['male'])
         examplea.save()
         
-        example = models.Person(name='example',
-            gender=models.GENDER_VALUES['male'])
+        example = Person(name='example',
+            gender=GENDER_VALUES['male'])
         example.save()
         
-        examplette = models.Person(name='examplette',
-            gender=models.GENDER_VALUES['female'])
+        examplette = Person(name='examplette',
+            gender=GENDER_VALUES['female'])
         examplette.save()
         
         qs = self.dqs.register('name', self.dqs.make_serializer()
                 .filter(name__in='$name'),
-            models.Person.objects.all())
+            Person.objects.all())
         
         find_examplette = qs.get_queryset({
             'name':['examplette']})
@@ -129,8 +143,6 @@ class BasicTests(TestCase):
         pass #TODO
     
     def test_util_functions(self):
-        from dqs.utils import *
-        
         self.assertTrue(not is_string_placeholder('something'))
         self.assertTrue(not is_string_placeholder('$$something'))
         self.assertTrue(is_string_placeholder('$something'))
@@ -146,17 +158,17 @@ class BasicTests(TestCase):
     def test_parameters_as_lists(self):
         s=self.dqs.register('passing-lists-params',
             self.dqs.make_serializer().filter(gender='$gender'),
-            models.Person.objects.all())
+            Person.objects.all())
         
         queryset = (self.dqs['passing-lists-params']
-            .from_iterable_parameters([models.GENDER_VALUES['male']]))
+            .from_iterable_parameters([GENDER_VALUES['male']]))
         
         self.assertEqual(queryset.all().count(),0)
         
-        p1 = models.Person(name='someone',
-            gender=models.GENDER_VALUES['male'])
-        p2 = models.Person(name='someoneelse',
-            gender=models.GENDER_VALUES['female'])
+        p1 = Person(name='someone',
+            gender=GENDER_VALUES['male'])
+        p2 = Person(name='someoneelse',
+            gender=GENDER_VALUES['female'])
         
         p1.save()
         p2.save()
@@ -174,11 +186,11 @@ class BasicTests(TestCase):
         
         s = self.dqs.register('names',
             self.dqs.make_serializer().filter(gender='$gender'),
-            models.Person.objects.all())
+            Person.objects.all())
         
-        male_gender = models.GENDER_VALUES['male']
+        male_gender = GENDER_VALUES['male']
         
-        models.Person(name='someone',
+        Person(name='someone',
             gender=male_gender).save()
         
         for paramss in [{'$gender':male_gender},
@@ -210,18 +222,18 @@ class BasicTests(TestCase):
         #TODO
     
     def test_from_url(self):
-        qs = models.Person.objects.all()
-        models.Person(name='somename',
-            gender=models.GENDER_VALUES['male']).save()
+        qs = Person.objects.all()
+        Person(name='somename',
+            gender=GENDER_VALUES['male']).save()
         
-        models.Person(name='$somename',
-            gender=models.GENDER_VALUES['male']).save()
+        Person(name='$somename',
+            gender=GENDER_VALUES['male']).save()
             
-        models.Person(name='__somename',
-            gender=models.GENDER_VALUES['male']).save()
+        Person(name='__somename',
+            gender=GENDER_VALUES['male']).save()
         
         serializer = self.dqs.make_serializer().filter(name='$name')
-        self.dqs.register('urlserialization1', serializer, models.Person.objects.all())
+        self.dqs.register('urlserialization1', serializer, Person.objects.all())
         
         self.assertEqual(len(self.dqs.from_url('/urlserialization1/somename')),1)
         self.assertEqual(len(self.dqs.from_url('/__somename', 'urlserialization1')),1)
@@ -249,13 +261,13 @@ class BasicTests(TestCase):
         
         supposedly_called_functions = set(['clean_field1', '__init__'])
         
-        person = models.Person(name='name')
+        person = Person(name='name')
         person.save()
         serializer = (self.dqs.make_serializer()
             .all()
             .filter(name='$field1'))
         self.dqs.register('form-test', serializer, 
-            models.Person.objects)
+            Person.objects)
         
         class DqsForm(dqs.forms.Form):
             serialization = self.dqs['form-test']
@@ -277,7 +289,7 @@ class BasicTests(TestCase):
             .all()
             .filter(__kwargfield='name'))
         self.dqs.register('form-test2', serializer, 
-            models.Person.objects)
+            Person.objects)
         
         try:
             DqsForm2()
