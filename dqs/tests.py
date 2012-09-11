@@ -176,7 +176,6 @@ class BasicTests(TestCase):
         
         for paramss in [{'$gender':male_gender},
                 {'gender':male_gender}]:
-            print 'paramss:', paramss
             qs = s.get_queryset(paramss)
             self.assertTrue(len(qs) == 1)
     

@@ -115,53 +115,38 @@ class FilterChain(object):
         
         parameters = parameters if parameters else {}
         
-        if self._placeholders and not parameters:
-            #TODO improve error condition through the use of sets
-            text = ('There are required parameters to get this '
-                + 'queryset. The required parameters are: %s. The '
-                + 'provided parameters were: %s')
-            raise Exception(text % (repr(self._placeholders), repr(
-                parameters)) )
-        
         param_keys = map(utils.unescape, parameters.keys())
-        param_vals = map(utils.unescape, parameters.values())
+        param_vals = parameters.values()
         parameters = dict(zip(param_keys, param_vals))
+        
+        missing_params = set(self._placeholders) - set(param_keys)
+        
+        if missing_params:
+            raise Exception('Parameters are missing: %s' % ', '.join( 
+                missing_params))
         
         'copy the placeholders. we are going to consume them'
         placeholders_left = list(self._placeholders)
         
-        def replace_placeholders(l):
+        def replace_placeholders(val):
             'Replace placeholder args in the input with user params'
-            #TODO refactor to use map()
-            ret = []
-            for val in l:
-                if val in placeholders_left:
-                    print 'parameters, val:', parameters, val
-                    to_append = parameters[val]
-                    placeholders_left.remove(val)
-                else:
-                    to_append = val
-                ret.append(to_append)
-            return ret
+            if val in placeholders_left:
+                placeholders_left.remove(val)
+                return parameters[val]
+            else:
+                return val
         
         def replace_placeholders_in_dict(d):
-            vals = replace_placeholders(d.values())
+            vals = map(replace_placeholders, d.values())
             keys = d.keys()
             return dict(zip(keys,vals))
         
         calls = []
         for operation in self._stack:
-            args = replace_placeholders(operation['args'])
+            args = map(replace_placeholders, operation['args'])
             kwargs = replace_placeholders_in_dict(operation['kwargs'])
             name = operation['name']
             calls.append((name,args,kwargs))
-        
-        #Won't be needed when first TODO in this function gets done
-        if len(placeholders_left) > 0:
-            raise Exception(
-                '%d parameters were not given to get_queryset: %s' %
-                (len(placeholders_left), ', '.join(
-                placeholders_left)))
         
         queryset = base_queryset
         for name, args, kwargs in calls:
