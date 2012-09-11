@@ -71,11 +71,11 @@ dqs = DjangoQuerysetSerialization()
 class FilterChain(object):
     '''
     A new way to serialize a queryset. You can just create it, and
-    change it like you would use a real queryset, except you can save
+    change it like you would a real queryset, except you can save
     it for later execution.
     
-    $parameters, or __keyword_arguments can be specified. They are
-    later passed to Serialization.get_queryset
+    $parameters can be specified. Their values are then passed to
+    Serialization.get_queryset as a dic
     
     Example:
     
@@ -91,7 +91,7 @@ class FilterChain(object):
      - Every parameter tag ($parameter-tag) must be a string. It is
     a good idea to keep them URL-friendly
     
-    '''
+    ''' #TODO fix docstring
     
     __slots__ = ['_placeholders', '_stack']
     
@@ -116,31 +116,27 @@ class FilterChain(object):
         parameters = parameters if parameters else {}
         
         if self._placeholders and not parameters:
+            #TODO improve error condition through the use of sets
             text = ('There are required parameters to get this '
                 + 'queryset. The required parameters are: %s. The '
                 + 'provided parameters were: %s')
             raise Exception(text % (repr(self._placeholders), repr(
                 parameters)) )
         
+        param_keys = map(utils.unescape, parameters.keys())
+        param_vals = map(utils.unescape, parameters.values())
+        parameters = dict(zip(param_keys, param_vals))
+        
         'copy the placeholders. we are going to consume them'
         placeholders_left = list(self._placeholders)
         
-        def fix_dict_keys(key_and_val):
-            key, val = key_and_val
-            if utils.is_placeholder(key):
-                key = utils.clean_placeholder(key)
-            return key, val
-        
-        parameters = dict(map(fix_dict_keys, parameters.items()))
-        
         def replace_placeholders(l):
-            '''
-            Replace placeholder items in the input list (args,
-            kwargs.keys() and kwargs.values()) with the user parameters
-            '''
+            'Replace placeholder args in the input with user params'
+            #TODO refactor to use map()
             ret = []
             for val in l:
                 if val in placeholders_left:
+                    print 'parameters, val:', parameters, val
                     to_append = parameters[val]
                     placeholders_left.remove(val)
                 else:
@@ -150,16 +146,17 @@ class FilterChain(object):
         
         def replace_placeholders_in_dict(d):
             vals = replace_placeholders(d.values())
-            keys = replace_placeholders(d.keys())
+            keys = d.keys()
             return dict(zip(keys,vals))
-        calls = []
         
+        calls = []
         for operation in self._stack:
             args = replace_placeholders(operation['args'])
             kwargs = replace_placeholders_in_dict(operation['kwargs'])
             name = operation['name']
             calls.append((name,args,kwargs))
         
+        #Won't be needed when first TODO in this function gets done
         if len(placeholders_left) > 0:
             raise Exception(
                 '%d parameters were not given to get_queryset: %s' %

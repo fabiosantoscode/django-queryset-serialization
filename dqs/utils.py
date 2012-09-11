@@ -31,6 +31,7 @@ def is_string_placeholder(s):
 # from http://stackoverflow.com/a/10134719/1011311
 kwarg_re = re.compile(r'^__[^\d\W]\w*$')
 def is_kwarg_key_placeholder(s):
+    raise DeprecationWarning
     try:
         if s.startswith('____'):
             return False
@@ -42,29 +43,23 @@ def is_kwarg_key_placeholder(s):
         
     
 def is_placeholder(s):
-    siphon = is_string_placeholder(s)
-    underscore = is_kwarg_key_placeholder(s)
-    return siphon or underscore
+    return is_string_placeholder(s)
 
 def unescape_non_placeholder(s):
     assert not is_placeholder(s)
     try:
         if s.startswith('$'):
             return s[1:]
-        elif s.startswith('__'):
-            return s[2:]
         else:
             return s
     except AttributeError: #startswith
         return s
-    
+
 def clean_placeholder(s):
     if not is_placeholder(s):
         raise ValueError
     if is_string_placeholder(s):
         return s[1:] # $XXXXXX
-    elif is_kwarg_key_placeholder(s):
-        return s[2:] # __XXXXXXX
 
 def unescape(s):
     if is_placeholder(s):

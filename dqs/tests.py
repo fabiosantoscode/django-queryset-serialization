@@ -41,21 +41,6 @@ class BasicTests(TestCase):
         
         self.assertTrue(this_model_should_be_found in qs)
         
-        
-        serializer = (self.dqs.make_serializer()
-            .filter(__configurable_filter='$a.placeholder')
-            .filter(name__icontains='Betty')
-            .all())
-        
-        self.dqs.register('name1', serializer, Person.objects.all())
-        self.assertTrue(len(serializer._stack) == 3)
-        
-        qs = self.dqs['name1'].get_queryset({
-            'configurable_filter':'name__icontains',
-            'a.placeholder':'Gibberish'})
-        
-        self.assertTrue(this_model_should_be_found in qs)
-        
     def test_new_serializer_unicode(self):
         pass #TODO
     
@@ -147,10 +132,6 @@ class BasicTests(TestCase):
         self.assertTrue(not is_string_placeholder('$$something'))
         self.assertTrue(is_string_placeholder('$something'))
 
-        self.assertTrue(is_kwarg_key_placeholder('__sthSth_'))
-        self.assertTrue(not is_kwarg_key_placeholder('__sth-sth'))
-        self.assertTrue(not is_kwarg_key_placeholder('____sthsth'))
-
         self.assertEqual(clean_placeholder('$placeholder'),'placeholder')
         self.assertEqual(unescape_non_placeholder('$$placeholder'),'$placeholder')
 
@@ -180,8 +161,8 @@ class BasicTests(TestCase):
     
     def test_escaping_interchangeable(self):
         '''test that users can still use `$names-like-these` in their
-        parameters dictionary keys, although the requirement is
-        actually that they pass `names-like-these`, without $ or __
+        parameters dictionary keys, as well as `names-like-these`, 
+        without the `$`
         '''
         
         s = self.dqs.register('names',
@@ -195,6 +176,7 @@ class BasicTests(TestCase):
         
         for paramss in [{'$gender':male_gender},
                 {'gender':male_gender}]:
+            print 'paramss:', paramss
             qs = s.get_queryset(paramss)
             self.assertTrue(len(qs) == 1)
     
@@ -207,7 +189,7 @@ class BasicTests(TestCase):
         This will not mean that the user will have to pass in the
         unescaped parameters. We must be wary that it is not always
         the user who gives the parameters, cleanly through a dict.
-        '__' and '$' are not very good to have spread about an URL, 
+        Unserializing from URL will always yield unescaped parameter names,
         for example.
         
         The avoidance is achieved through storing the serializer's
@@ -282,24 +264,17 @@ class BasicTests(TestCase):
         self.assertTrue(person in qs)
         
         # Test giving it the serialization on __init__
-        class DqsForm2(dqs.forms.Form):
-            kwargfield = forms.CharField(max_length=8)
-        
-        serializer = (self.dqs.make_serializer()
-            .all()
-            .filter(__kwargfield='name'))
-        self.dqs.register('form-test2', serializer, 
-            Person.objects)
+        del DqsForm.serialization
         
         try:
-            DqsForm2()
+            DqsForm()
             self.assertFalse('Exception was not raised!')
         except AttributeError:
             pass
         
-        form2 = DqsForm2(dict(kwargfield='name'), self.dqs['form-test2'])
-        form2.is_valid()
+        form2 = DqsForm(dict(field1='name'), self.dqs['form-test'])
         
+        self.assertTrue(form2.is_valid())
         self.assertTrue(person in form2.get_queryset())
     
     def test_model_persistance(self):
